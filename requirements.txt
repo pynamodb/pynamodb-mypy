@@ -1,0 +1,7 @@
+-e .
+# Remove this line after mypy-0.660 is released
+-e git+git://github.com/ikonst/mypy.git@5a8dffb5bd94bda615703f6994d39ea1c7c02ef5#egg=mypy
+pre-commit
+pytest
+pytest-cov
+pytest-mock

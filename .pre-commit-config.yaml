@@ -1,0 +1,56 @@
+repos:
+    - repo: https://github.com/asottile/reorder_python_imports
+      rev: v1.3.4
+      hooks:
+          - id: reorder-python-imports
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v2.0.0
+      hooks:
+          - id: check-ast
+          - id: check-docstring-first
+          - id: check-executables-have-shebangs
+          - id: check-json
+          - id: check-merge-conflict
+          - id: check-yaml
+          - id: debug-statements
+          - id: end-of-file-fixer
+          - id: flake8
+            additional_dependencies:
+                - flake8>=3.6.0,<4
+                - flake8-bugbear
+                - flake8-builtins
+                - flake8-comprehensions
+                - flake8-commas
+          - id: trailing-whitespace
+    - repo: https://github.com/asottile/yesqa
+      rev: v0.0.8
+      hooks:
+          - id: yesqa
+            additional_dependencies:
+                - flake8>=3.6.0,<4
+                - flake8-bugbear
+                - flake8-builtins
+                - flake8-comprehensions
+                - flake8-commas
+    - repo: https://github.com/asottile/pyupgrade
+      rev: v1.11.0
+      hooks:
+        - id: pyupgrade
+    # Switch to standard pre-commit mypy when a version of mypy is released that has:
+    # - mypy.plugin.Plugin.lookup_fully_qualified
+    # - typeshed with https://github.com/ikonst/typeshed/tree/pynamodb-attr-nullable
+    - repo: local
+      hooks:
+        - id: mypy
+          name: mypy
+          entry: mypy
+          language: python
+          'types': [python]
+          args: ["--ignore-missing-imports", "--scripts-are-modules", "--show-traceback"]
+          additional_dependencies: [
+            '-U', 'git+git://github.com/ikonst/mypy.git@5a8dffb5bd94bda615703f6994d39ea1c7c02ef5',
+          ]
+          exclude: >
+            (?x)^(
+              tests/.*|
+            )$
