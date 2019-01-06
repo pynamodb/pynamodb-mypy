@@ -11,6 +11,8 @@ setup(
     packages=find_packages(exclude=['tests/*']),
     install_requires=[
         'mypy>=0.660',
+        # TODO: update version after https://github.com/pynamodb/PynamoDB/pull/579 is released
+        'pynamodb',
     ],
     python_requires='>=3',
 )

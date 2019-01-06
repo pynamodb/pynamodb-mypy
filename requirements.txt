@@ -1,6 +1,8 @@
 -e .
-# Remove this line after mypy-0.660 is released
--e git+git://github.com/ikonst/mypy.git@5a8dffb5bd94bda615703f6994d39ea1c7c02ef5#egg=mypy
+# TODO: Remove this line after mypy-0.660 is released
+-e git+git://github.com/python/mypy.git@2b8691d8a485fbb91f28e6d570b147a629213118#egg=mypy
+# TODO: Remove this line after https://github.com/pynamodb/PynamoDB/pull/579 is released
+-e git+git://github.com/ikonst/pynamodb.git@1efc2abd42afc5c759655a0abde8b823aeb18a1c#egg=pynamodb
 pre-commit
 pytest
 pytest-cov

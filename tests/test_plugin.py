@@ -24,27 +24,41 @@ def test_unicode_attribute():
     from pynamodb.models import Model
 
     class MyModel(Model):
-        my_attr = UnicodeAttribute(null=True)
+        my_attr = UnicodeAttribute()
+        my_nullable_attr = UnicodeAttribute(null=True)
 
-    reveal_type(MyModel.my_attr)  # E: Revealed type is 'pynamodb.attributes._NullableAttribute[pynamodb.attributes.UnicodeAttribute, builtins.str]'
-    reveal_type(MyModel().my_attr)  # E: Revealed type is 'Union[builtins.str*, None]'
-    MyModel().my_attr.lower()  # E: Item "None" of "Optional[str]" has no attribute "lower"
-    """)  # noqa: E501
+    reveal_type(MyModel.my_attr)  # E: Revealed type is 'pynamodb.attributes.UnicodeAttribute'
+    reveal_type(MyModel.my_nullable_attr)  # E: Revealed type is 'pynamodb.attributes.UnicodeAttribute*'
+    reveal_type(MyModel().my_attr)  # E: Revealed type is 'builtins.str*'
+    reveal_type(MyModel().my_nullable_attr)  # E: Revealed type is 'Union[builtins.str*, None]'
+
+    MyModel().my_attr.lower()
+    MyModel().my_nullable_attr.lower()  # E: Item "None" of "Optional[str]" has no attribute "lower"
+    """)
 
 
-def test_custom_type():
+def test_custom_attribute():
     assert_mypy_output("""
     from pynamodb.attributes import Attribute
     from pynamodb.models import Model
 
     class BinaryAttribute(Attribute[bytes]):
-        pass
+        def do_something(self) -> None: ...
 
     class MyModel(Model):
-        my_attr = BinaryAttribute(null=True)
+        my_attr = BinaryAttribute()
+        my_nullable_attr = BinaryAttribute(null=True)
 
-    reveal_type(MyModel().my_attr)  # E: Revealed type is 'Union[builtins.bytes*, None]'
-    """)
+    reveal_type(MyModel.my_attr)  # E: Revealed type is '__main__.BinaryAttribute'
+    reveal_type(MyModel.my_attr.exists)  # E: Revealed type is 'def () -> pynamodb.expressions.condition.Exists'
+    reveal_type(MyModel.my_attr.do_something)  # E: Revealed type is 'def ()'
+    reveal_type(MyModel().my_attr)  # E: Revealed type is 'builtins.bytes*'
+
+    reveal_type(MyModel.my_nullable_attr)  # E: Revealed type is '__main__.BinaryAttribute*'
+    reveal_type(MyModel.my_nullable_attr.exists)  # E: Revealed type is 'def () -> pynamodb.expressions.condition.Exists'
+    reveal_type(MyModel.my_nullable_attr.do_something)  # E: Revealed type is 'def ()'
+    reveal_type(MyModel().my_nullable_attr)  # E: Revealed type is 'Union[builtins.bytes*, None]'
+    """)  # noqa: E501
 
 
 def test_unexpected_number_of_nulls():

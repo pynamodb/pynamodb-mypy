@@ -9,7 +9,7 @@ from mypy.plugin import FunctionContext
 from mypy.plugin import Plugin
 
 ATTR_FULL_NAME = 'pynamodb.attributes.Attribute'
-NULL_ATTR_FULL_NAME = 'pynamodb.attributes._NullableAttribute'
+NULL_ATTR_WRAPPER_FULL_NAME = 'pynamodb.attributes._NullableAttributeWrapper'
 
 
 class PynamodbPlugin(Plugin):
@@ -58,7 +58,7 @@ def _attribute_instantiation_hook(ctx: FunctionContext,
             return ctx.default_return_type
 
         if null_arg_expr.fullname == 'builtins.True':
-            return ctx.api.named_generic_type(NULL_ATTR_FULL_NAME, [
+            return ctx.api.named_generic_type(NULL_ATTR_WRAPPER_FULL_NAME, [
                 ctx.default_return_type,
                 underlying_type,
             ])
