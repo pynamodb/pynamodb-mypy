@@ -34,7 +34,7 @@ def _run_mypy(program: str) -> Iterable[str]:
             if m:
                 errors_by_line[int(m.group(1))].append(m.group(2))
             elif line:
-                print('x', repr(line))  # allow "printf debugging" of the plugin
+                print(line)  # allow "printf debugging"
 
         # Reconstruct the "actual" program with "error" comments
         error_comment_pattern = re.compile(r'(\s+# E: .*)?$')
