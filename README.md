@@ -31,3 +31,23 @@ would have to be changed to, e.g.:
 if my_model.my_value and my_model.my_value.lower() == 'foo':
    print("Value is foo")
 ```
+
+# Model construction
+
+When calling a model's constructor, we will ensure all keywords and their types match the model's attributes:
+```py
+from pynamodb.attributes import UnicodeAttribute
+from pynamodb.models import Model
+
+class MyModel(Model):
+  my_key = UnicodeAttribute()
+  my_value = UnicodeAttribute(null=True)
+
+...
+# error: Argument "my_key" to "MyModel" has incompatible type "None"; expected "str"
+# error: Argument "my_value" to "MyModel" has incompatible type "int"; expected "Optional[str]"
+my_model = MyModel(my_key=None, my_value=42)
+```
+
+Since it's common to initialize an empty or partial model (i.e. `MyModel()`),
+all arguments (regardless of nullability or defaults) are keyword-only and optional.

@@ -19,6 +19,10 @@ def test_model_init():
         attrs[0] = NumberAttribute(null=True)
 
     reveal_type(MyModel.__init__)  # E: Revealed type is 'def (self: __main__.MyModel, *, my_attr: builtins.float =, my_null_attr: Union[builtins.float, None] =)'
+    MyModel(  # E: Argument "my_attr" to "MyModel" has incompatible type "None"; expected "float"  # E: Argument "my_null_attr" to "MyModel" has incompatible type "str"; expected "Optional[float]"
+        my_attr=None,
+        my_null_attr='foo',
+    )
     """)  # noqa: E501
 
 
