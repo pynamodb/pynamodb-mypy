@@ -1,6 +1,27 @@
 from .mypy_helpers import assert_mypy_output
 
 
+def test_model_init():
+    assert_mypy_output("""
+    from typing import Any
+    from pynamodb.attributes import NumberAttribute
+    from pynamodb.models import Model
+
+    class MyModel(Model):
+        my_attr = NumberAttribute()
+        my_null_attr = NumberAttribute(null=True)
+
+        # various non-patterns to exercise branches
+        foo = 'bar'
+        bar = str('baz')
+        print(foo)
+        attrs: Any = []
+        attrs[0] = NumberAttribute(null=True)
+
+    reveal_type(MyModel.__init__)  # E: Revealed type is 'def (self: __main__.MyModel, *, my_attr: builtins.float =, my_null_attr: Union[builtins.float, None] =)'
+    """)  # noqa: E501
+
+
 def test_number_attribute():
     assert_mypy_output("""
     from pynamodb.attributes import NumberAttribute
