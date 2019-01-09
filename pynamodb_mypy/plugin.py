@@ -12,28 +12,26 @@ NULL_ATTR_WRAPPER_FULL_NAME = 'pynamodb.attributes._NullableAttributeWrapper'
 
 
 class PynamodbPlugin(Plugin):
-    @staticmethod
-    def _get_attribute_underlying_type(attribute_class: TypeInfo) -> Optional[mypy.types.Type]:
-        """
-        e.g. for `class MyAttribute(Attribute[int])`, this will return `int`.
-        """
-        for base_instance in attribute_class.bases:
-            if base_instance.type.fullname() == ATTR_FULL_NAME:
-                return base_instance.args[0]
-        return None
-
     def get_function_hook(self, fullname: str) -> Optional[Callable[[FunctionContext], mypy.types.Type]]:
-        symbol_table_node = self.lookup_fully_qualified(fullname)
-        if not symbol_table_node:
-            return None
-
-        if isinstance(symbol_table_node.node, TypeInfo):
-            underlying_type = self._get_attribute_underlying_type(symbol_table_node.node)
-            if underlying_type:
-                _underlying_type = underlying_type  # https://github.com/python/mypy/issues/4297
+        sym = self.lookup_fully_qualified(fullname)
+        if sym and isinstance(sym.node, TypeInfo):
+            attr_underlying_type = _get_attribute_underlying_type(sym.node)
+            if attr_underlying_type:
+                _underlying_type = attr_underlying_type  # https://github.com/python/mypy/issues/4297
                 return lambda ctx: _attribute_instantiation_hook(ctx, _underlying_type)
 
         return None
+
+
+def _get_attribute_underlying_type(attribute_class: TypeInfo) -> Optional[mypy.types.Type]:
+    """
+    For attribute classes, will return the underlying type.
+    e.g. for `class MyAttribute(Attribute[int])`, this will return `int`.
+    """
+    for base_instance in attribute_class.bases:
+        if base_instance.type.fullname() == ATTR_FULL_NAME:
+            return base_instance.args[0]
+    return None
 
 
 def _attribute_instantiation_hook(ctx: FunctionContext,
