@@ -19,7 +19,7 @@ class PynamodbPlugin(mypy.plugin.Plugin):
                                   ) -> Optional[Callable[[mypy.plugin.MethodSigContext], mypy.types.CallableType]]:
         class_name, method_name = fullname.rsplit('.', 1)
         sym = self.lookup_fully_qualified(class_name)
-        if sym and _is_attribute_type_node(sym.node):
+        if sym is not None and sym.node is not None and _is_attribute_type_node(sym.node):
             if method_name == '__get__':
                 return _get_method_sig_hook
             elif method_name == '__set__':
@@ -27,8 +27,11 @@ class PynamodbPlugin(mypy.plugin.Plugin):
         return None
 
 
-def _is_attribute_type_node(type_node: mypy.nodes.TypeInfo) -> bool:
-    return any(base.type.fullname == ATTR_FULL_NAME for base in type_node.bases)
+def _is_attribute_type_node(node: mypy.nodes.Node) -> bool:
+    return (
+        isinstance(node, mypy.nodes.TypeInfo) and
+        any(base.type.fullname == ATTR_FULL_NAME for base in node.bases)
+    )
 
 
 def _attribute_marked_as_nullable(t: mypy.types.Instance) -> mypy.types.Instance:
