@@ -45,18 +45,20 @@ def _is_attribute_marked_nullable(t: mypy.types.Type) -> bool:
     )
 
 
-def _get_bool_literal(n: mypy.nodes.Node) -> Optional[bool]:
+def _get_bool_literal(node: mypy.nodes.Node) -> Optional[bool]:
     return {
         'builtins.False': False,
         'builtins.True': True,
-    }.get(n.fullname or '') if isinstance(n, mypy.nodes.NameExpr) else None
+    }.get(node.fullname or '') if isinstance(node, mypy.nodes.NameExpr) else None
 
 
 def _make_optional(t: mypy.types.Type) -> mypy.types.UnionType:
+    """Wraps a type in optionality"""
     return mypy.types.UnionType([t, mypy.types.NoneType()])
 
 
 def _unwrap_optional(t: mypy.types.Type) -> mypy.types.Type:
+    """Unwraps a potentially optional type"""
     if not isinstance(t, mypy.types.UnionType):
         return t
     t = mypy.types.UnionType([item for item in t.items if not isinstance(item, mypy.types.NoneType)])
@@ -69,6 +71,9 @@ def _unwrap_optional(t: mypy.types.Type) -> mypy.types.Type:
 
 
 def _get_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.CallableType:
+    """
+    Patches up the signature of Attribute.__get__ to respect attribute's nullability.
+    """
     sig = ctx.default_signature
     if not _is_attribute_marked_nullable(ctx.type):
         return sig
@@ -82,6 +87,9 @@ def _get_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.Callab
 
 
 def _set_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.CallableType:
+    """
+    Patches up the signature of Attribute.__set__ to respect attribute's nullability.
+    """
     sig = ctx.default_signature
     if _is_attribute_marked_nullable(ctx.type):
         return sig
