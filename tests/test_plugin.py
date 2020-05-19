@@ -14,13 +14,13 @@ def test_number_attribute(assert_mypy_output):
     reveal_type(MyModel().my_not_nullable_attr)  # N: Revealed type is 'builtins.float*'
 
     my_model = MyModel()
-    my_model.my_attr = None
+    my_model.my_attr = None  # E: Incompatible types in assignment (expression has type "None", variable has type "float")  [assignment]
     my_model.my_nullable_attr = None
-    my_model.my_not_nullable_attr = None
+    my_model.my_not_nullable_attr = None  # E: Incompatible types in assignment (expression has type "None", variable has type "float")  [assignment]
     my_model.my_attr = 42
     my_model.my_nullable_attr = 42
     my_model.my_not_nullable_attr = 42
-    """)
+    """)  # noqa: E501
 
 
 def test_unicode_attribute(assert_mypy_output):
@@ -39,6 +39,25 @@ def test_unicode_attribute(assert_mypy_output):
 
     MyModel().my_attr.lower()
     MyModel().my_nullable_attr.lower()  # E: Item "None" of "Optional[str]" has no attribute "lower"  [union-attr]
+    """)
+
+
+def test_map_attribute(assert_mypy_output):
+    assert_mypy_output("""
+    from pynamodb.attributes import MapAttribute, UnicodeAttribute
+    from pynamodb.models import Model
+
+    class MyMapAttribute(MapAttribute):
+        my_sub_attr = UnicodeAttribute()
+
+    class MyModel(Model):
+        my_attr = MyMapAttribute()
+        my_nullable_attr = MyMapAttribute(null=True)
+
+    reveal_type(MyModel.my_attr)  # N: Revealed type is '__main__.MyMapAttribute'
+    reveal_type(MyModel.my_nullable_attr)  # N: Revealed type is '__main__.MyMapAttribute[None]'
+    reveal_type(MyModel().my_attr)  # N: Revealed type is '__main__.MyMapAttribute'
+    reveal_type(MyModel().my_nullable_attr)  # N: Revealed type is 'Union[__main__.MyMapAttribute[None], None]'
     """)
 
 

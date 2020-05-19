@@ -30,7 +30,7 @@ class PynamodbPlugin(mypy.plugin.Plugin):
 def _is_attribute_type_node(node: mypy.nodes.Node) -> bool:
     return (
         isinstance(node, mypy.nodes.TypeInfo) and
-        any(base.type.fullname == ATTR_FULL_NAME for base in node.bases)
+        node.has_base(ATTR_FULL_NAME)
     )
 
 
@@ -84,7 +84,7 @@ def _get_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.Callab
         (instance_type, owner_type) = sig.arg_types
     except ValueError:
         return sig
-    if not isinstance(instance_type, mypy.types.AnyType):  # instance attribute access
+    if isinstance(instance_type, mypy.types.NoneType):  # class attribute access
         return sig
     return sig.copy_modified(ret_type=_make_optional(sig.ret_type))
 
