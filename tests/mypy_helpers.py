@@ -24,6 +24,8 @@ def _run_mypy(program: str, *, use_pdb: bool) -> Iterable[str]:
         mypy_args = [
             f.name,
             '--show-traceback',
+            '--raise-exceptions',
+            '--show-error-codes',
             '--config-file', config_file,
         ]
         if use_pdb:

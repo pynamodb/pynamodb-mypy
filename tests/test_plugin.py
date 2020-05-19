@@ -12,6 +12,14 @@ def test_number_attribute(assert_mypy_output):
     reveal_type(MyModel().my_attr)  # N: Revealed type is 'builtins.float*'
     reveal_type(MyModel().my_nullable_attr)  # N: Revealed type is 'Union[builtins.float*, None]'
     reveal_type(MyModel().my_not_nullable_attr)  # N: Revealed type is 'builtins.float*'
+
+    my_model = MyModel()
+    my_model.my_attr = None
+    my_model.my_nullable_attr = None
+    my_model.my_not_nullable_attr = None
+    my_model.my_attr = 42
+    my_model.my_nullable_attr = 42
+    my_model.my_not_nullable_attr = 42
     """)
 
 
@@ -30,7 +38,7 @@ def test_unicode_attribute(assert_mypy_output):
     reveal_type(MyModel().my_nullable_attr)  # N: Revealed type is 'Union[builtins.str*, None]'
 
     MyModel().my_attr.lower()
-    MyModel().my_nullable_attr.lower()  # E: Item "None" of "Optional[str]" has no attribute "lower"
+    MyModel().my_nullable_attr.lower()  # E: Item "None" of "Optional[str]" has no attribute "lower"  [union-attr]
     """)
 
 
@@ -64,7 +72,7 @@ def test_unexpected_number_of_nulls(assert_mypy_output):
     from pynamodb.models import Model
 
     class MyModel(Model):
-        my_attr = NumberAttribute(True, True, True, null=True)  # E: "NumberAttribute" gets multiple values for keyword argument "null"
+        my_attr = NumberAttribute(True, True, True, null=True)  # E: "NumberAttribute" gets multiple values for keyword argument "null"  [misc]
 
     reveal_type(MyModel().my_attr)  # N: Revealed type is 'builtins.float*'
     """)  # noqa: E501
@@ -76,7 +84,7 @@ def test_unexpected_value_of_null(assert_mypy_output):
     from pynamodb.models import Model
 
     class MyModel(Model):
-        my_attr = NumberAttribute(null=bool(5))  # E: 'null' argument is not constant False or True, cannot deduce optionality
+        my_attr = NumberAttribute(null=bool(5))  # E: 'null' argument is not constant False or True, cannot deduce optionality  [misc]
 
     reveal_type(MyModel().my_attr)  # N: Revealed type is 'builtins.float*'
     """)  # noqa: E501

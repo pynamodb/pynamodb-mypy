@@ -15,11 +15,15 @@ class PynamodbPlugin(mypy.plugin.Plugin):
             return _attribute_instantiation_hook
         return None
 
-    def get_attribute_hook(self, fullname: str
-                           ) -> Optional[Callable[[mypy.plugin.AttributeContext], mypy.types.Type]]:
-        sym = self.lookup_fully_qualified(fullname)
-        if sym and sym.type and _is_attribute_marked_nullable(sym.type):
-            return lambda ctx: mypy.types.UnionType([ctx.default_attr_type, mypy.types.NoneType()])
+    def get_method_signature_hook(self, fullname: str
+                                  ) -> Optional[Callable[[mypy.plugin.MethodSigContext], mypy.types.CallableType]]:
+        class_name, method_name = fullname.rsplit('.', 1)
+        sym = self.lookup_fully_qualified(class_name)
+        if sym and _is_attribute_type_node(sym.node):
+            if method_name == '__get__':
+                return _get_method_sig_hook
+            elif method_name == '__set__':
+                return _set_method_sig_hook
         return None
 
 
@@ -46,6 +50,48 @@ def _get_bool_literal(n: mypy.nodes.Node) -> Optional[bool]:
         'builtins.False': False,
         'builtins.True': True,
     }.get(n.fullname or '') if isinstance(n, mypy.nodes.NameExpr) else None
+
+
+def _make_optional(t: mypy.types.Type) -> mypy.types.UnionType:
+    return mypy.types.UnionType([t, mypy.types.NoneType()])
+
+
+def _unwrap_optional(t: mypy.types.Type) -> mypy.types.Type:
+    if not isinstance(t, mypy.types.UnionType):
+        return t
+    t = mypy.types.UnionType([item for item in t.items if not isinstance(item, mypy.types.NoneType)])
+    if len(t.items) == 0:
+        return mypy.types.NoneType()
+    elif len(t.items) == 1:
+        return t.items[0]
+    else:
+        return t
+
+
+def _get_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.CallableType:
+    sig = ctx.default_signature
+    if not _is_attribute_marked_nullable(ctx.type):
+        return sig
+    try:
+        (instance_type, owner_type) = sig.arg_types
+    except ValueError:
+        return sig
+    if not isinstance(instance_type, mypy.types.AnyType):  # instance attribute access
+        return sig
+    return sig.copy_modified(ret_type=_make_optional(sig.ret_type))
+
+
+def _set_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.CallableType:
+    sig = ctx.default_signature
+    if _is_attribute_marked_nullable(ctx.type):
+        return sig
+    try:
+        (instance_type, value_type) = sig.arg_types
+    except ValueError:
+        return sig
+    if not isinstance(instance_type, mypy.types.AnyType):  # instance attribute access
+        return sig
+    return sig.copy_modified(arg_types=[instance_type, _unwrap_optional(value_type)])
 
 
 def _attribute_instantiation_hook(ctx: mypy.plugin.FunctionContext) -> mypy.types.Type:
