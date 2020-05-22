@@ -1,7 +1,7 @@
 sudo: false
 language: python
 python:
-  - '3.6'
+  - '3.8'
 cache:
   directories:
     - $HOME/.cache/pip
@@ -18,8 +18,8 @@ jobs:
         provider: pypi
         user: ikonst
         password:
-          secure: "TlSgflmwfHh6pc03DuL9FOpieuDr2E2e4iaOtCnSa5kWdMldxOWVVUmjWJ0xDrL6nS+Hr5ZygAJzppVbiCvWiOC8curLu+Pl2eLc+Mf9WG9Mw1G2DiU8ci+uJdYCE6Dpak8OKG9lUu0O3XBDy+oZIEEaiWVdjBrBVplK0le8pFNB6fNu4Nru2JOGunHyQUfDmD+80m5tm8Mo32Y0Xryi30m7yRrLBlqn7eu2YnRcuhcY904edtuL36smSWNMl4rc6+IhxcQil11TlQD+DoyGlqxohYhaELgFs/2afYdJJJ/zq4qQ2ZJ8c6qwnKWxclLeoC8pGmDuhJo9zmyHuAJWeU+PZ1/ldyTjC1ttinJcbCZNlqZI7cz/slzxKwmcuTTXHRbnxS9VYv/n7csz8V0yoXAHww0ifXGXLl91sIo8jUrsc0ZEpcbLzESH7tR6wrOa3pBxV+yMrDwidsqDfnTGMyJ4PhC2zikM4HDwNuqsciUIYlY34fIcid4/1eep6AEMhHKtmfcLrBU6eg2WAaUnf1XaGmwK5J60zp0yX2fGo0XTxHm8ETKaTkgrnMhmaLvQ9BJ2Zx+a1sery0xYj/jIshMY4DZBMAjH5rvSV1T0SQslr0IBAGcyWV3jG9gwPTb5dtJmAX/WSYx1Sb52kbjYlUuBj7ffLADCjfVzKFWQxeQ="
+          secure: "d5zNL/guwonRQ7fI11ebzSTYLcrsTiVJROImJixYsr8G/NbM7/XEaRKr3nn/1br+LMd9TS89SeIY5MT1yAsCUYj8+zuACoOzi9lZslAwBi3sp2BhOve9T5LJhwHDA8WPehNq76jPaixN+0F9ytjpR4VE1xV6nlBjlXk5omqUUICFsbBjLAWS/rAFTsb2VmaECyF9dosdH26dXHb0oYJa3cpMbCHt/zbrAuFlaRG2qentgXv8PPCKBPxowGfTCUH/F25e/i7zzE1wbQBDcH4ZfkbvDFND6pMqb7Hfpumg1CZGrvgKEf1RmpKOCXHZWHDlm1C7H6hWaMACTw/AaHIEGNY2LHim3zEr19W6PYiEakVfGkfOXOo16pVSd65uxEp+C0+GB5KCimN57w7ZE9ucooEiaZMRfhIr8PX+4AGHfbLSj+6g0xDpg1x0woyPEvdzc1ZsZQJr4GY7OuI/4qqWrV48D+Hz5R2dVOxGFvaIYnYRGL3F/RmdPnO6B+IjXpQWHdm1FmhJM2jDG1wxXVqSTZmgEmUYKv8K5t0K/+f5SlJZ2tZOmbtDa3+Yo/1iTohCr0+OiDPojQY82EQmTiL8Ffr5aqpydwg8mQS6DX3m8w7vRzFvjlgoVQQ8ghP9BINhn2dvRMZdGfE/q8qqpL5qBIuLyHiU3Rnc6s1IxEbpw+Y="
         on:
           tags: true
           distributions: sdist
-          repo: lyft/pynamodb-mypy
+          repo: pynamodb/pynamodb-mypy
