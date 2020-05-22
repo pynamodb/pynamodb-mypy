@@ -20,6 +20,9 @@ def test_number_attribute(assert_mypy_output):
     my_model.my_attr = 42
     my_model.my_nullable_attr = 42
     my_model.my_not_nullable_attr = 42
+
+    # just here to exercise the fallthrough of 'get_method_signature_hook'
+    reveal_type(MyModel.my_attr.exists())  # N: Revealed type is 'pynamodb.expressions.condition.Exists'
     """)  # noqa: E501
 
 
