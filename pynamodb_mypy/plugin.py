@@ -62,15 +62,15 @@ def _make_optional(t: mypy.types.Type) -> mypy.types.UnionType:
 
 def _unwrap_optional(t: mypy.types.Type) -> mypy.types.Type:
     """Unwraps a potentially optional type"""
-    if not isinstance(t, mypy.types.UnionType):
+    if not isinstance(t, mypy.types.UnionType):  # pragma: no cover
         return t
     t = mypy.types.UnionType([item for item in t.items if not isinstance(item, mypy.types.NoneType)])
-    if len(t.items) == 0:
+    if len(t.items) == 0:  # pragma: no cover
         return mypy.types.NoneType()
     elif len(t.items) == 1:
         return t.items[0]
     else:
-        return t
+        return t  # pragma: no cover
 
 
 def _get_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.CallableType:
@@ -82,7 +82,7 @@ def _get_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.Callab
         return sig
     try:
         (instance_type, owner_type) = sig.arg_types
-    except ValueError:
+    except ValueError:  # pragma: no cover
         return sig
     if isinstance(instance_type, mypy.types.NoneType):  # class attribute access
         return sig
@@ -98,9 +98,7 @@ def _set_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.Callab
         return sig
     try:
         (instance_type, value_type) = sig.arg_types
-    except ValueError:
-        return sig
-    if not isinstance(instance_type, mypy.types.AnyType):  # instance attribute access
+    except ValueError:  # pragma: no cover
         return sig
     return sig.copy_modified(arg_types=[instance_type, _unwrap_optional(value_type)])
 
