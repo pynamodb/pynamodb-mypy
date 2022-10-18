@@ -1,5 +1,56 @@
-def test_number_attribute(assert_mypy_output):
-    assert_mypy_output("""
+from __future__ import annotations
+
+from unittest.mock import Mock
+
+from .mypy_helpers import MypyAssert
+
+
+def test_init(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from pynamodb.attributes import NumberAttribute
+    from pynamodb.models import Model
+
+    class MyModel(Model):
+        my_hash_key = NumberAttribute(hash_key=True)
+        my_range_key = NumberAttribute(range_key=True)
+        my_attr = NumberAttribute()
+
+    MyModel(my_attr=5.5)
+    MyModel(5.5, my_attr=5.5)
+    MyModel(5.5, 5.5, my_attr=5.5)
+    MyModel(hash_key=5.5, range_key=5.5, my_attr=5.5)
+    MyModel(hash_key='hello', range_key='world', my_attr=5.5)  # E: Argument "hash_key" to "MyModel" has incompatible type "str"; expected "float"  [arg-type]
+                                                               # E: Argument "range_key" to "MyModel" has incompatible type "str"; expected "float"  [arg-type]
+    MyModel(foobar=5.5)  # E: Unexpected keyword argument "foobar" for "MyModel"  [call-arg]
+    """
+    )
+
+
+def test_init__no_attributes(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from pynamodb.attributes import NumberAttribute
+    from pynamodb.models import Model
+
+    class MyModel(Model):
+        pass
+
+    MyModel('foo', 'bar')  # E: Argument 1 to "MyModel" has incompatible type "str"; expected "None"  [arg-type]
+                           # E: Argument 2 to "MyModel" has incompatible type "str"; expected "None"  [arg-type]
+    MyModel(hash_key='foo', range_key='bar', spam='ham')  # E: Unexpected keyword argument "spam" for "MyModel"  [call-arg]
+                                                          # E: Argument "hash_key" to "MyModel" has incompatible type "str"; expected "None"  [arg-type]
+                                                          # E: Argument "range_key" to "MyModel" has incompatible type "str"; expected "None"  [arg-type]
+    """
+    )
+
+
+def test_number_attribute(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from typing import Optional
+    from typing_extensions import assert_type
+
     from pynamodb.attributes import NumberAttribute
     from pynamodb.models import Model
 
@@ -8,26 +59,27 @@ def test_number_attribute(assert_mypy_output):
         my_nullable_attr = NumberAttribute(null=True)
         my_not_nullable_attr = NumberAttribute(null=False)
 
-    reveal_type(MyModel.my_attr)  # N: Revealed type is 'pynamodb.attributes.NumberAttribute'
-    reveal_type(MyModel().my_attr)  # N: Revealed type is 'builtins.float*'
-    reveal_type(MyModel().my_nullable_attr)  # N: Revealed type is 'Union[builtins.float*, None]'
-    reveal_type(MyModel().my_not_nullable_attr)  # N: Revealed type is 'builtins.float*'
+    assert_type(MyModel.my_attr, NumberAttribute)
+    assert_type(MyModel().my_attr, float)
+    assert_type(MyModel().my_nullable_attr, Optional[float])
+    assert_type(MyModel().my_not_nullable_attr, float)
 
-    my_model = MyModel()
-    my_model.my_attr = None  # E: Incompatible types in assignment (expression has type "None", variable has type "float")  [assignment]
-    my_model.my_nullable_attr = None
-    my_model.my_not_nullable_attr = None  # E: Incompatible types in assignment (expression has type "None", variable has type "float")  [assignment]
-    my_model.my_attr = 42
-    my_model.my_nullable_attr = 42
-    my_model.my_not_nullable_attr = 42
-
-    # just here to exercise the fallthrough of 'get_method_signature_hook'
-    reveal_type(MyModel.my_attr.exists())  # N: Revealed type is 'pynamodb.expressions.condition.Exists'
-    """)  # noqa: E501
+    MyModel(my_attr=5.5)
+    MyModel(my_attr='5.5')  # E: Argument "my_attr" to "MyModel" has incompatible type "str"; expected "float"  [arg-type]
+    MyModel(my_attr=None)  # E: Argument "my_attr" to "MyModel" has incompatible type "None"; expected "float"  [arg-type]
+    MyModel(my_nullable_attr=5.5)
+    MyModel(my_nullable_attr='5.5')  # E: Argument "my_nullable_attr" to "MyModel" has incompatible type "str"; expected "Optional[float]"  [arg-type]
+    MyModel(my_nullable_attr=None)
+    """
+    )
 
 
-def test_unicode_attribute(assert_mypy_output):
-    assert_mypy_output("""
+def test_unicode_attribute(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from typing import Optional
+    from typing_extensions import assert_type
+
     from pynamodb.attributes import UnicodeAttribute
     from pynamodb.models import Model
 
@@ -35,37 +87,24 @@ def test_unicode_attribute(assert_mypy_output):
         my_attr = UnicodeAttribute()
         my_nullable_attr = UnicodeAttribute(null=True)
 
-    reveal_type(MyModel.my_attr)  # N: Revealed type is 'pynamodb.attributes.UnicodeAttribute'
-    reveal_type(MyModel.my_nullable_attr)  # N: Revealed type is 'pynamodb.attributes.UnicodeAttribute[None]'
-    reveal_type(MyModel().my_attr)  # N: Revealed type is 'builtins.str*'
-    reveal_type(MyModel().my_nullable_attr)  # N: Revealed type is 'Union[builtins.str*, None]'
+    assert_type(MyModel.my_attr, UnicodeAttribute)
+    assert_type(MyModel.my_nullable_attr, UnicodeAttribute)
+    assert_type(MyModel().my_attr, str)
+    assert_type(MyModel().my_nullable_attr, Optional[str])
 
     MyModel().my_attr.lower()
     MyModel().my_nullable_attr.lower()  # E: Item "None" of "Optional[str]" has no attribute "lower"  [union-attr]
-    """)
+    """
+    )
 
 
-def test_map_attribute(assert_mypy_output):
-    assert_mypy_output("""
-    from pynamodb.attributes import MapAttribute, UnicodeAttribute
-    from pynamodb.models import Model
+def test_custom_attribute(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from typing import Optional
+    from typing_extensions import assert_type
 
-    class MyMapAttribute(MapAttribute):
-        my_sub_attr = UnicodeAttribute()
-
-    class MyModel(Model):
-        my_attr = MyMapAttribute()
-        my_nullable_attr = MyMapAttribute(null=True)
-
-    reveal_type(MyModel.my_attr)  # N: Revealed type is '__main__.MyMapAttribute'
-    reveal_type(MyModel.my_nullable_attr)  # N: Revealed type is '__main__.MyMapAttribute[None]'
-    reveal_type(MyModel().my_attr)  # N: Revealed type is '__main__.MyMapAttribute'
-    reveal_type(MyModel().my_nullable_attr)  # N: Revealed type is 'Union[__main__.MyMapAttribute[None], None]'
-    """)
-
-
-def test_custom_attribute(assert_mypy_output):
-    assert_mypy_output("""
+    import pynamodb.expressions.condition
     from pynamodb.attributes import Attribute
     from pynamodb.models import Model
 
@@ -76,46 +115,101 @@ def test_custom_attribute(assert_mypy_output):
         my_attr = BinaryAttribute()
         my_nullable_attr = BinaryAttribute(null=True)
 
-    reveal_type(MyModel.my_attr)  # N: Revealed type is '__main__.BinaryAttribute'
-    reveal_type(MyModel.my_attr.exists)  # N: Revealed type is 'def () -> pynamodb.expressions.condition.Exists'
-    reveal_type(MyModel.my_attr.do_something)  # N: Revealed type is 'def ()'
-    reveal_type(MyModel().my_attr)  # N: Revealed type is 'builtins.bytes*'
+    assert_type(MyModel.my_attr, BinaryAttribute)
+    assert_type(MyModel.my_attr.exists(), pynamodb.expressions.condition.Exists)
+    assert_type(MyModel.my_attr.do_something(), None)
+    assert_type(MyModel().my_attr, bytes)
 
-    reveal_type(MyModel.my_nullable_attr)  # N: Revealed type is '__main__.BinaryAttribute[None]'
-    reveal_type(MyModel.my_nullable_attr.exists)  # N: Revealed type is 'def () -> pynamodb.expressions.condition.Exists'
-    reveal_type(MyModel.my_nullable_attr.do_something)  # N: Revealed type is 'def ()'
-    reveal_type(MyModel().my_nullable_attr)  # N: Revealed type is 'Union[builtins.bytes*, None]'
-    """)  # noqa: E501
+    assert_type(MyModel.my_nullable_attr, BinaryAttribute)
+    assert_type(MyModel.my_nullable_attr.exists(), pynamodb.expressions.condition.Exists)
+    assert_type(MyModel.my_nullable_attr.do_something(), None)
+    assert_type(MyModel().my_nullable_attr, Optional[bytes])
+    """
+    )
 
 
-def test_unexpected_number_of_nulls(assert_mypy_output):
-    assert_mypy_output("""
+def test_map_attribute(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from typing import Optional
+    from typing_extensions import assert_type
+
+    from pynamodb.attributes import MapAttribute, UnicodeAttribute
+    from pynamodb.models import Model
+
+    class MyMapAttribute(MapAttribute):
+        my_sub_attr = UnicodeAttribute()
+
+    class MyModel(Model):
+        my_attr = MyMapAttribute()
+        my_nullable_attr = MyMapAttribute(null=True)
+
+    assert_type(MyModel.my_attr, MyMapAttribute)
+    assert_type(MyModel.my_nullable_attr, MyMapAttribute)
+    assert_type(MyModel().my_attr, MyMapAttribute)
+    assert_type(MyModel().my_nullable_attr, Optional[MyMapAttribute])
+    """
+    )
+
+
+def test_unexpected_value_of_null(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from typing import Optional
+    from typing_extensions import assert_type
+
     from pynamodb.attributes import NumberAttribute
     from pynamodb.models import Model
 
     class MyModel(Model):
-        my_attr = NumberAttribute(True, True, True, null=True)  # E: "NumberAttribute" gets multiple values for keyword argument "null"  [misc]
+        my_attr = NumberAttribute(null=bool(5))  # E: 'null' argument is not constant False or True  [misc]
 
-    reveal_type(MyModel().my_attr)  # N: Revealed type is 'builtins.float*'
-    """)  # noqa: E501
+    assert_type(MyModel().my_attr, float)
+    """
+    )
 
 
-def test_unexpected_value_of_null(assert_mypy_output):
-    assert_mypy_output("""
-    from pynamodb.attributes import NumberAttribute
+def test_attribute_assigned_out_of_class_scope(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
     from pynamodb.models import Model
+    from pynamodb.attributes import NumberAttribute
+
+    num = NumberAttribute()
+    """
+    )
+
+
+def test_attribute_not_assigned_to_class_var(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from pynamodb.models import Model
+    from pynamodb.attributes import NumberAttribute
 
     class MyModel(Model):
-        my_attr = NumberAttribute(null=bool(5))  # E: 'null' argument is not constant False or True, cannot deduce optionality  [misc]
+        NumberAttribute()  # E: PynamoDB attribute not assigned to a class variable  [misc]
+    """
+    )
 
-    reveal_type(MyModel().my_attr)  # N: Revealed type is 'builtins.float*'
-    """)  # noqa: E501
+
+def test_attribute_hook_fallback(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    class C:
+        def __init__(self) -> None:
+            self.d = 42
+
+    _ = C().d
+    """
+    )
 
 
-def test_function_hook_fallback(assert_mypy_output):
-    assert_mypy_output("""
+def test_function_hook_fallback(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
     def foo():
         pass
 
     foo()
-    """)
+    """
+    )

@@ -1,6 +1,5 @@
 -e .
-# TODO: Remove this line after https://github.com/pynamodb/PynamoDB/pull/579 is released
--e git+git://github.com/ikonst/pynamodb.git@1efc2abd42afc5c759655a0abde8b823aeb18a1c#egg=pynamodb
+pynamodb
 pre-commit
 pytest>=4.1
 pytest-cov
