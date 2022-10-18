@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from unittest.mock import Mock
-
 from .mypy_helpers import MypyAssert
 
 
-def test_init(assert_mypy_output: MypyAssert) -> None:
+def test_model_init(assert_mypy_output: MypyAssert) -> None:
     assert_mypy_output(
         """
     from pynamodb.attributes import NumberAttribute
@@ -27,7 +25,7 @@ def test_init(assert_mypy_output: MypyAssert) -> None:
     )
 
 
-def test_init__no_attributes(assert_mypy_output: MypyAssert) -> None:
+def test_model_init__no_attributes(assert_mypy_output: MypyAssert) -> None:
     assert_mypy_output(
         """
     from pynamodb.attributes import NumberAttribute
@@ -41,6 +39,47 @@ def test_init__no_attributes(assert_mypy_output: MypyAssert) -> None:
     MyModel(hash_key='foo', range_key='bar', spam='ham')  # E: Unexpected keyword argument "spam" for "MyModel"  [call-arg]
                                                           # E: Argument "hash_key" to "MyModel" has incompatible type "str"; expected "None"  [arg-type]
                                                           # E: Argument "range_key" to "MyModel" has incompatible type "str"; expected "None"  [arg-type]
+    """
+    )
+
+
+def test_model_init__custom_empty(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from pynamodb.attributes import NumberAttribute
+    from pynamodb.models import Model
+
+    class MyModel(Model):
+        my_hash_key = NumberAttribute(hash_key=True)
+        my_range_key = NumberAttribute(range_key=True)
+        my_attr = NumberAttribute()
+
+        def __init__(self) -> None:
+          ...
+
+    MyModel('foo', 'bar')  # E: Unexpected signature 'def () -> __main__.MyModel' for a PynamoDB model initializer: expecting 'hash_key', 'range_key' and a keywords argument  [misc]
+                           # E: Too many arguments for "MyModel"  [call-arg]
+    """
+    )
+
+
+def test_model_init__custom_all_args(assert_mypy_output: MypyAssert) -> None:
+    assert_mypy_output(
+        """
+    from typing import Any
+
+    from pynamodb.attributes import NumberAttribute
+    from pynamodb.models import Model
+
+    class MyModel(Model):
+        my_hash_key = NumberAttribute(hash_key=True)
+        my_range_key = NumberAttribute(range_key=True)
+        my_attr = NumberAttribute()
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+          ...
+
+    MyModel(unknown=42)  # E: Unexpected signature 'def (*args: Any, **kwargs: Any) -> __main__.MyModel' for a PynamoDB model initializer: expecting 'hash_key', 'range_key' and a keywords argument  [misc]
     """
     )
 
