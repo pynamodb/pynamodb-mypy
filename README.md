@@ -31,3 +31,30 @@ would have to be changed to, e.g.:
 if my_model.my_value and my_model.my_value.lower() == 'foo':
    print("Value is foo")
 ```
+
+# Typed model initializers
+
+When declaring models, the `__init__` method would be typed to accept only the attributes declared in the model. For example:
+```py
+from pynamodb.models import Model
+from pynamodb.attributes import NumberAttribute
+from pynamodb.attributes import UnicodeAttribute
+
+class MyModel(Model):
+  my_key = UnicodeAttribute(hash_key=True)
+  my_value = NumberAttribute(null=True)
+
+# Existing attributes would be enforced:
+_ = MyModel(my_key='key', my_value=42, my_other_value='other_value')  # error: Unexpected keyword argument "my_other_value" for "MyModel"
+
+# Typing would be enforced:
+_ = MyModel(my_key='key', my_value='42')  # error: Argument 2 to "MyModel" has incompatible type "str"; expected "Optional[int]"
+
+# Nullability will be enforced::
+_ = MyModel(my_key='key', my_value=None)
+_ = MyModel(my_key=None, my_value=None)  # error: Argument "my_key" to "MyModel" has incompatible type "None"; expected "str"
+
+# The hash key and range key can also be passed as positional arguments:
+_ = MyModel('key')
+_ = MyModel(42)  # error: Argument 1 to "MyModel" has incompatible type "int"; expected "str"
+```

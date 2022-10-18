@@ -1,123 +1,232 @@
+from __future__ import annotations
+
+import functools
 from typing import Callable
-from typing import Optional
+from typing import TypedDict
+from typing import Union
 
-import mypy.nodes
-import mypy.plugin
+import mypy.checker
+import mypy.checkmember
+import mypy.options
 import mypy.types
+from mypy.fixup import TypeFixer
+from mypy.nodes import ArgKind
+from mypy.nodes import NameExpr
+from mypy.nodes import TypeInfo
+from mypy.plugin import AttributeContext
+from mypy.plugin import FunctionContext
+from mypy.plugin import FunctionSigContext
+from mypy.plugin import Plugin
+from mypy.typeanal import make_optional_type
 
-ATTR_FULL_NAME = 'pynamodb.attributes.Attribute'
+from pynamodb_mypy._private_api import get_descriptor_access_type
+
+PYNAMODB_MODEL_FULL_NAME = "pynamodb.models.Model"
+PYNAMODB_ATTRIBUTE_FULL_NAME = "pynamodb.attributes.Attribute"
+
+# A serialized type. Use `_rehydrate_type` to rehydrate.
+SerializedType = Union[mypy.types.JsonDict, str]
 
 
-class PynamodbPlugin(mypy.plugin.Plugin):
-    def get_function_hook(self, fullname: str) -> Optional[Callable[[mypy.plugin.FunctionContext], mypy.types.Type]]:
+class PynamodbAttributeDict(TypedDict):
+    """
+    The information persisted in the model type's metadata for each of the model's attributes.
+    """
+
+    # The type of the attribute in serialized form.
+    type: SerializedType
+
+    # Whether it's a hash key.
+    is_hash_key: bool
+
+    # Whether it's a range key.
+    is_range_key: bool
+
+
+def _pynamodb_attributes_metadata(info: mypy.nodes.TypeInfo) -> dict[str, PynamodbAttributeDict]:
+    return info.metadata.setdefault("pynamodb_attributes", {})
+
+
+def _rehydrate_type(api: mypy.plugin.CheckerPluginInterface, data: SerializedType) -> mypy.types.Type:
+    """
+    After analysis, we persist what we've learned in serialized form the in mypy metadata.
+    This rehydrates a serialized type back to a mypy type.
+    """
+    internal_api = api
+    assert isinstance(internal_api, mypy.checker.TypeChecker)
+
+    typ = mypy.types.deserialize_type(data)
+    typ.accept(TypeFixer(internal_api.modules, allow_missing=False))
+    return typ
+
+
+class PynamodbPlugin(Plugin):
+    #
+    # plugin callbacks which express interest in specific types (that the plugin handles) and provides return hooks
+    # to handle them
+    #
+    # see: https://mypy.readthedocs.io/en/stable/extending_mypy.html#current-list-of-plugin-hooks
+
+    def get_function_signature_hook(
+        self,
+        fullname: str,
+    ) -> Callable[[FunctionSigContext], mypy.types.FunctionLike] | None:
         sym = self.lookup_fully_qualified(fullname)
-        if sym and isinstance(sym.node, mypy.nodes.TypeInfo) and _is_attribute_type_node(sym.node):
-            return _attribute_instantiation_hook
+        if sym and isinstance(sym.node, TypeInfo) and sym.node.has_base(PYNAMODB_MODEL_FULL_NAME):
+            return self._get_function_signature_hook__pynamodb_model__init__
         return None
 
-    def get_method_signature_hook(self, fullname: str
-                                  ) -> Optional[Callable[[mypy.plugin.MethodSigContext], mypy.types.CallableType]]:
-        class_name, method_name = fullname.rsplit('.', 1)
+    def get_attribute_hook(self, fullname: str) -> Callable[[AttributeContext], mypy.types.Type] | None:
+        class_name, _, attr_name = fullname.rpartition(".")
         sym = self.lookup_fully_qualified(class_name)
-        if sym is not None and sym.node is not None and _is_attribute_type_node(sym.node):
-            if method_name == '__get__':
-                return _get_method_sig_hook
-            elif method_name == '__set__':
-                return _set_method_sig_hook
+        if sym and isinstance(sym.node, TypeInfo) and sym.node.has_base(PYNAMODB_MODEL_FULL_NAME):
+            return functools.partial(self._get_attribute_hook__pynamodb_model, sym.node, attr_name)
         return None
 
+    def get_function_hook(self, fullname: str) -> Callable[[FunctionContext], mypy.types.Type] | None:
+        sym = self.lookup_fully_qualified(fullname)
+        if not sym:  # pragma: no cover
+            return None
+        if isinstance(sym.node, TypeInfo) and sym.node.has_base(PYNAMODB_ATTRIBUTE_FULL_NAME):
+            return self._get_function_hook__pynamodb_attribute__init__
+        return None
 
-def _is_attribute_type_node(node: mypy.nodes.Node) -> bool:
-    return (
-        isinstance(node, mypy.nodes.TypeInfo) and
-        node.has_base(ATTR_FULL_NAME)
-    )
+    #
+    # hooks for specific types
+    #
 
+    def _get_function_signature_hook__pynamodb_model__init__(self, ctx: FunctionSigContext) -> mypy.types.FunctionLike:
+        """
+        Called when a model is initialized (e.g. MyModel(foo='bar')).
+        """
+        model_instance = ctx.default_signature.ret_type
+        if not isinstance(model_instance, mypy.types.Instance):  # pragma: no cover
+            return ctx.default_signature
 
-def _attribute_marked_as_nullable(t: mypy.types.Instance) -> mypy.types.Instance:
-    return t.copy_modified(args=t.args + [mypy.types.NoneType()])
+        args = {
+            attr_name: _rehydrate_type(ctx.api, attr_data["type"])
+            for attr_name, attr_data in _pynamodb_attributes_metadata(model_instance.type).items()
+        }
 
+        # substitute hash/range key types
+        hash_key_type: mypy.types.Type = mypy.types.NoneTyp()
+        range_key_type: mypy.types.Type = mypy.types.NoneTyp()
+        for attr_data in _pynamodb_attributes_metadata(model_instance.type).values():
+            if attr_data["is_hash_key"]:
+                hash_key_type = _rehydrate_type(ctx.api, attr_data["type"])
+            if attr_data["is_range_key"]:
+                range_key_type = _rehydrate_type(ctx.api, attr_data["type"])
 
-def _is_attribute_marked_nullable(t: mypy.types.Type) -> bool:
-    return (
-            isinstance(t, mypy.types.Instance) and
-            _is_attribute_type_node(t.type) and
-            # In lieu of being able to attach metadata to an instance,
-            # having a None "fake" type argument is our way of marking the attribute as nullable
-            bool(t.args) and isinstance(t.args[-1], mypy.types.NoneType)
-    )
-
-
-def _get_bool_literal(node: mypy.nodes.Node) -> Optional[bool]:
-    return {
-        'builtins.False': False,
-        'builtins.True': True,
-    }.get(node.fullname or '') if isinstance(node, mypy.nodes.NameExpr) else None
-
-
-def _make_optional(t: mypy.types.Type) -> mypy.types.UnionType:
-    """Wraps a type in optionality"""
-    return mypy.types.UnionType([t, mypy.types.NoneType()])
-
-
-def _unwrap_optional(t: mypy.types.Type) -> mypy.types.Type:
-    """Unwraps a potentially optional type"""
-    if not isinstance(t, mypy.types.UnionType):  # pragma: no cover
-        return t
-    t = mypy.types.UnionType([item for item in t.items if not isinstance(item, mypy.types.NoneType)])
-    if len(t.items) == 0:  # pragma: no cover
-        return mypy.types.NoneType()
-    elif len(t.items) == 1:
-        return t.items[0]
-    else:
-        return t  # pragma: no cover
-
-
-def _get_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.CallableType:
-    """
-    Patches up the signature of Attribute.__get__ to respect attribute's nullability.
-    """
-    sig = ctx.default_signature
-    if not _is_attribute_marked_nullable(ctx.type):
-        return sig
-    try:
-        (instance_type, owner_type) = sig.arg_types
-    except ValueError:  # pragma: no cover
-        return sig
-    if isinstance(instance_type, mypy.types.NoneType):  # class attribute access
-        return sig
-    return sig.copy_modified(ret_type=_make_optional(sig.ret_type))
-
-
-def _set_method_sig_hook(ctx: mypy.plugin.MethodSigContext) -> mypy.types.CallableType:
-    """
-    Patches up the signature of Attribute.__set__ to respect attribute's nullability.
-    """
-    sig = ctx.default_signature
-    if _is_attribute_marked_nullable(ctx.type):
-        return sig
-    try:
-        (instance_type, value_type) = sig.arg_types
-    except ValueError:  # pragma: no cover
-        return sig
-    return sig.copy_modified(arg_types=[instance_type, _unwrap_optional(value_type)])
-
-
-def _attribute_instantiation_hook(ctx: mypy.plugin.FunctionContext) -> mypy.types.Type:
-    """
-    Handles attribute instantiation, e.g. MyAttribute(null=True)
-    """
-    args = dict(zip(ctx.callee_arg_names, ctx.args))
-
-    # If initializer is passed null=True, mark attribute type instance as nullable
-    null_arg_exprs = args.get('null')
-    nullable = False
-    if null_arg_exprs and len(null_arg_exprs) == 1:
-        null_literal = _get_bool_literal(null_arg_exprs[0])
-        if null_literal is not None:
-            nullable = null_literal
+        # substitute the **kwargs with the named arguments based on model's attributes
+        try:
+            hash_key_idx = ctx.default_signature.arg_names.index("hash_key")
+            range_key_idx = ctx.default_signature.arg_names.index("range_key")
+            kwargs_idx = ctx.default_signature.arg_kinds.index(ArgKind.ARG_STAR2)
+        except IndexError:  # pragma: no cover
+            return ctx.default_signature
         else:
-            ctx.api.fail("'null' argument is not constant False or True, cannot deduce optionality", ctx.context)
+            arg_kinds = ctx.default_signature.arg_kinds.copy()
+            arg_names = ctx.default_signature.arg_names.copy()
+            arg_types = ctx.default_signature.arg_types.copy()
+            arg_types[hash_key_idx] = hash_key_type
+            arg_types[range_key_idx] = range_key_type
+            arg_kinds[kwargs_idx : kwargs_idx + 1] = [ArgKind.ARG_NAMED_OPT] * len(args)
+            arg_names[kwargs_idx : kwargs_idx + 1] = args.keys()
+            arg_types[kwargs_idx : kwargs_idx + 1] = args.values()
+            return ctx.default_signature.copy_modified(
+                arg_kinds=arg_kinds,
+                arg_names=arg_names,
+                arg_types=arg_types,
+            )
 
-    assert isinstance(ctx.default_return_type, mypy.types.Instance)
-    return _attribute_marked_as_nullable(ctx.default_return_type) if nullable else ctx.default_return_type
+    def _get_function_hook__pynamodb_attribute__init__(self, ctx: FunctionContext) -> mypy.types.Type:
+        """
+        Handles attribute instantiation, e.g. MyAttribute(null=True)
+        """
+        self._inspect_pynamodb_attribute_init(ctx)
+        return ctx.default_return_type
+
+    def _get_attribute_hook__pynamodb_model(
+        self,
+        model_typeinfo: mypy.nodes.TypeInfo,
+        attr_name: str,
+        ctx: AttributeContext,
+    ) -> mypy.types.Type:
+        """
+        Called when a model's attribute is referenced, used to determine the attribute's type:
+        this generally works well even without the plugin (thanks for mypy supporting the Descriptor protocol),
+        the nullability (support for `null=True`) is what's being added here.
+        """
+        attr_data = _pynamodb_attributes_metadata(model_typeinfo).get(attr_name)
+        if not attr_data:  # pragma: no cover
+            return ctx.default_attr_type
+        return _rehydrate_type(ctx.api, attr_data["type"])
+
+    # utils
+
+    def _inspect_pynamodb_attribute_init(self, ctx: FunctionContext) -> None:
+        """
+        Inspects the initialization of PynamoDB attributes to see:
+        - which class field they're assigned to (a'la __set_name__)
+        - how they're initialized (nullable?)
+
+        All information we discover, we persist in the model type's mypy metadata.
+        """
+        internal_api = ctx.api
+        assert isinstance(internal_api, mypy.checker.TypeChecker)
+
+        attr_instance = ctx.default_return_type
+
+        # determine which class we're assigned into
+        scope_cls = internal_api.scope.active_class()
+        if not scope_cls:
+            return
+
+        # Determine which class var name we're assigned to (to know the attribute's pythonic name)
+        for stmt in scope_cls.defn.defs.body:
+            if isinstance(stmt, mypy.nodes.AssignmentStmt) and stmt.rvalue is ctx.context:
+                if len(stmt.lvalues) != 1:  # pragma: no cover
+                    ctx.api.fail(f"PynamoDB attribute assigned to {len(stmt.lvalues)} names in a model", stmt)
+                    continue
+                lvalue = stmt.lvalues[0]
+                if not isinstance(lvalue, mypy.nodes.NameExpr):  # pragma: no cover
+                    ctx.api.fail("PynamoDB attribute assigned to non-name", stmt)
+                    continue
+
+                attr_name = lvalue.name
+                break
+        else:
+            ctx.api.fail("PynamoDB attribute not assigned to a class variable", ctx.context)
+            return
+
+        # A PynamoDB attribute is a Python descriptor (https://docs.python.org/3/howto/descriptor.html)
+        attr_type = get_descriptor_access_type(ctx.context, internal_api, attr_instance)
+        if not attr_type:  # pragma: no cover
+            ctx.api.fail("PynamoDB attribute does not act as a data descriptor (does it have __get__?)", ctx.context)
+            return
+
+        def _get_named_arg(arg_name: str) -> mypy.nodes.Expression | None:
+            for names, args in zip(ctx.arg_names, ctx.args):
+                for name, arg in zip(names, args):
+                    if name == arg_name:
+                        return arg
+            return None
+
+        def _check_literal_bool(arg_name: str, default: bool) -> bool:
+            arg_expr = _get_named_arg(arg_name)
+            if arg_expr is None:
+                return default
+            if not isinstance(arg_expr, NameExpr) or arg_expr.fullname not in ("builtins.False", "builtins.True"):
+                ctx.api.fail(f"'{arg_name}' argument is not constant False or True", ctx.context)
+                return default
+
+            return arg_expr.fullname == "builtins.True"
+
+        if _check_literal_bool("null", False):
+            attr_type = make_optional_type(attr_type)
+
+        _pynamodb_attributes_metadata(scope_cls)[attr_name] = PynamodbAttributeDict(
+            type=attr_type.serialize(),
+            is_hash_key=_check_literal_bool("hash_key", False),
+            is_range_key=_check_literal_bool("range_key", False),
+        )
