@@ -122,7 +122,9 @@ class PynamodbPlugin(Plugin):
             hash_key_idx = ctx.default_signature.arg_names.index("hash_key")
             range_key_idx = ctx.default_signature.arg_names.index("range_key")
             kwargs_idx = ctx.default_signature.arg_kinds.index(ArgKind.ARG_STAR2)
-        except IndexError:  # pragma: no cover
+        except ValueError:
+            ctx.api.fail(f"Unexpected signature '{ctx.default_signature}' for a PynamoDB model initializer: "
+                         "expecting 'hash_key', 'range_key' and a keywords argument", ctx.context)
             return ctx.default_signature
         else:
             arg_kinds = ctx.default_signature.arg_kinds.copy()
