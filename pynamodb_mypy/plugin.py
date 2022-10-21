@@ -103,10 +103,12 @@ class PynamodbPlugin(Plugin):
         if not isinstance(model_instance, mypy.types.Instance):  # pragma: no cover
             return ctx.default_signature
 
-        args = {
-            attr_name: _rehydrate_type(ctx.api, attr_data["type"])
-            for attr_name, attr_data in _pynamodb_attributes_metadata(model_instance.type).items()
-        }
+        args = {}
+        for model_cls in model_instance.type.mro:
+            args.update({
+                attr_name: _rehydrate_type(ctx.api, attr_data["type"])
+                for attr_name, attr_data in _pynamodb_attributes_metadata(model_cls).items()
+            })
 
         # substitute hash/range key types
         hash_key_type: mypy.types.Type = mypy.types.NoneTyp()
