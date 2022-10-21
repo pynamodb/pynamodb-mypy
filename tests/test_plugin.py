@@ -14,6 +14,9 @@ def test_model_init(assert_mypy_output: MypyAssert) -> None:
         my_range_key = NumberAttribute(range_key=True)
         my_attr = NumberAttribute()
 
+    class MyDerivedModel(MyModel):
+        my_derived_attr = NumberAttribute()
+
     MyModel(my_attr=5.5)
     MyModel(5.5, my_attr=5.5)
     MyModel(5.5, 5.5, my_attr=5.5)
@@ -21,6 +24,11 @@ def test_model_init(assert_mypy_output: MypyAssert) -> None:
     MyModel(hash_key='hello', range_key='world', my_attr=5.5)  # E: Argument "hash_key" to "MyModel" has incompatible type "str"; expected "float"  [arg-type]
                                                                # E: Argument "range_key" to "MyModel" has incompatible type "str"; expected "float"  [arg-type]
     MyModel(foobar=5.5)  # E: Unexpected keyword argument "foobar" for "MyModel"  [call-arg]
+    
+    # test with derived model
+
+    MyDerivedModel(my_attr=5.5, my_derived_attr=42)
+    MyDerivedModel(foobar=5.5)  # E: Unexpected keyword argument "foobar" for "MyDerivedModel"  [call-arg]
     """
     )
 
